@@ -196,7 +196,6 @@ const Index = () => {
   ]);
 
   const keysRef = useRef<{ [key: string]: boolean }>({});
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const mouseMovementRef = useRef({ x: 0, y: 0 });
   const isPointerLockedRef = useRef(false);
   const [shooting, setShooting] = useState(false);
