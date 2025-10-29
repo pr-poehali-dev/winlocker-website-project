@@ -3,6 +3,128 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import Icon from '@/components/ui/icon';
 
+const createAudioContext = () => {
+  const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+  return new AudioContext();
+};
+
+const playShootSound = () => {
+  try {
+    const ctx = createAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    oscillator.frequency.setValueAtTime(200, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.1);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
+};
+
+const playHitSound = () => {
+  try {
+    const ctx = createAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    oscillator.frequency.setValueAtTime(150, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.15);
+    
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.15);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
+};
+
+const playPickupSound = () => {
+  try {
+    const ctx = createAudioContext();
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    oscillator.frequency.setValueAtTime(400, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.1);
+    
+    gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.1);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
+};
+
+const playBackgroundMusic = (audioContextRef: React.MutableRefObject<AudioContext | null>) => {
+  try {
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+    }
+    
+    const ctx = createAudioContext();
+    audioContextRef.current = ctx;
+    
+    const notes = [220, 233, 196, 185, 174, 185, 196, 233];
+    let noteIndex = 0;
+    
+    const playNote = () => {
+      if (ctx.state === 'closed') return;
+      
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      oscillator.frequency.setValueAtTime(notes[noteIndex], ctx.currentTime);
+      oscillator.type = 'square';
+      
+      gainNode.gain.setValueAtTime(0.05, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+      
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.4);
+      
+      noteIndex = (noteIndex + 1) % notes.length;
+    };
+    
+    const interval = setInterval(() => {
+      if (ctx.state === 'closed') {
+        clearInterval(interval);
+        return;
+      }
+      playNote();
+    }, 500);
+    
+    return () => {
+      clearInterval(interval);
+      ctx.close();
+    };
+  } catch (e) {
+    console.log('Audio not supported');
+    return () => {};
+  }
+};
+
 type GameState = 'menu' | 'playing' | 'paused' | 'gameover';
 
 interface Player {
@@ -73,20 +195,21 @@ const Index = () => {
     { x: 10, y: 10, collected: false },
   ]);
 
-  const [keys, setKeys] = useState<{ [key: string]: boolean }>({});
+  const keysRef = useRef<{ [key: string]: boolean }>({});
   const [shooting, setShooting] = useState(false);
   const [recoil, setRecoil] = useState(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      setKeys((prev) => ({ ...prev, [e.key.toLowerCase()]: true }));
+      keysRef.current[e.key.toLowerCase()] = true;
       if (e.key === ' ' && gameState === 'playing') {
         handleShoot();
       }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      setKeys((prev) => ({ ...prev, [e.key.toLowerCase()]: false }));
+      keysRef.current[e.key.toLowerCase()] = false;
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -96,7 +219,7 @@ const Index = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [gameState, player, enemies]);
+  }, [gameState]);
 
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -107,7 +230,7 @@ const Index = () => {
     }, 1000 / 60);
 
     return () => clearInterval(gameLoop);
-  }, [gameState, player, enemies, keys, healthPacks]);
+  }, [gameState]);
 
   const updateGame = () => {
     setPlayer((prev) => {
@@ -115,7 +238,7 @@ const Index = () => {
       let newY = prev.y;
       let newAngle = prev.angle;
 
-      if (keys['w']) {
+      if (keysRef.current['w']) {
         const nextX = prev.x + Math.cos(prev.angle) * prev.speed;
         const nextY = prev.y + Math.sin(prev.angle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
@@ -123,7 +246,7 @@ const Index = () => {
           newY = nextY;
         }
       }
-      if (keys['s']) {
+      if (keysRef.current['s']) {
         const nextX = prev.x - Math.cos(prev.angle) * prev.speed;
         const nextY = prev.y - Math.sin(prev.angle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
@@ -131,10 +254,10 @@ const Index = () => {
           newY = nextY;
         }
       }
-      if (keys['a']) {
+      if (keysRef.current['a']) {
         newAngle -= 0.05;
       }
-      if (keys['d']) {
+      if (keysRef.current['d']) {
         newAngle += 0.05;
       }
 
@@ -145,6 +268,7 @@ const Index = () => {
           );
           if (dist < 0.5) {
             pack.collected = true;
+            playPickupSound();
             setPlayer((p) => ({ ...p, health: Math.min(100, p.health + 30) }));
           }
         }
@@ -178,6 +302,7 @@ const Index = () => {
         }
 
         if (dist < 1.5 && newAttackTimer <= 0) {
+          playHitSound();
           setPlayer((p) => {
             const newHealth = p.health - 5;
             if (newHealth <= 0) {
@@ -209,6 +334,7 @@ const Index = () => {
   const handleShoot = () => {
     if (player.ammo <= 0 || shooting) return;
 
+    playShootSound();
     setShooting(true);
     setRecoil(10);
     setPlayer((prev) => ({ ...prev, ammo: prev.ammo - 1 }));
@@ -352,7 +478,16 @@ const Index = () => {
       { x: 5, y: 5, collected: false },
       { x: 10, y: 10, collected: false },
     ]);
+    playBackgroundMusic(audioContextRef);
   };
+
+  useEffect(() => {
+    return () => {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
