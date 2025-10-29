@@ -196,8 +196,6 @@ const Index = () => {
   ]);
 
   const keysRef = useRef<{ [key: string]: boolean }>({});
-  const mouseMovementRef = useRef({ x: 0, y: 0 });
-  const isPointerLockedRef = useRef(false);
   const [shooting, setShooting] = useState(false);
   const [recoil, setRecoil] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -214,39 +212,12 @@ const Index = () => {
       keysRef.current[e.key.toLowerCase()] = false;
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isPointerLockedRef.current && gameState === 'playing') {
-        mouseMovementRef.current.x += e.movementX;
-        mouseMovementRef.current.y += e.movementY;
-      }
-    };
-
-    const handleClick = () => {
-      if (gameState === 'playing' && canvasRef.current && !isPointerLockedRef.current) {
-        canvasRef.current.requestPointerLock();
-      }
-    };
-
-    const handlePointerLockChange = () => {
-      isPointerLockedRef.current = document.pointerLockElement === canvasRef.current;
-    };
-
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    window.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('pointerlockchange', handlePointerLockChange);
-    if (canvasRef.current) {
-      canvasRef.current.addEventListener('click', handleClick);
-    }
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      window.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('pointerlockchange', handlePointerLockChange);
-      if (canvasRef.current) {
-        canvasRef.current.removeEventListener('click', handleClick);
-      }
     };
   }, [gameState]);
 
@@ -267,47 +238,31 @@ const Index = () => {
       let newY = prev.y;
       let newAngle = prev.angle;
 
-      // Поворот камеры мышкой
-      if (mouseMovementRef.current.x !== 0) {
-        newAngle += mouseMovementRef.current.x * 0.002;
-        mouseMovementRef.current.x = 0;
-      }
-
-      // W - вперед
+      // W - движение вперед
       if (keysRef.current['w']) {
-        const nextX = prev.x + Math.cos(newAngle) * prev.speed;
-        const nextY = prev.y + Math.sin(newAngle) * prev.speed;
+        const nextX = prev.x + Math.cos(prev.angle) * prev.speed;
+        const nextY = prev.y + Math.sin(prev.angle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
           newX = nextX;
           newY = nextY;
         }
       }
-      // S - назад
+      // S - движение назад
       if (keysRef.current['s']) {
-        const nextX = prev.x - Math.cos(newAngle) * prev.speed;
-        const nextY = prev.y - Math.sin(newAngle) * prev.speed;
+        const nextX = prev.x - Math.cos(prev.angle) * prev.speed;
+        const nextY = prev.y - Math.sin(prev.angle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
           newX = nextX;
           newY = nextY;
         }
       }
-      // A - влево (стрейф)
+      // A - поворот налево
       if (keysRef.current['a']) {
-        const nextX = prev.x + Math.cos(newAngle - Math.PI / 2) * prev.speed;
-        const nextY = prev.y + Math.sin(newAngle - Math.PI / 2) * prev.speed;
-        if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
-          newX = nextX;
-          newY = nextY;
-        }
+        newAngle -= 0.05;
       }
-      // D - вправо (стрейф)
+      // D - поворот направо
       if (keysRef.current['d']) {
-        const nextX = prev.x + Math.cos(newAngle + Math.PI / 2) * prev.speed;
-        const nextY = prev.y + Math.sin(newAngle + Math.PI / 2) * prev.speed;
-        if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
-          newX = nextX;
-          newY = nextY;
-        }
+        newAngle += 0.05;
       }
 
       healthPacks.forEach((pack) => {
@@ -641,16 +596,8 @@ const Index = () => {
               </div>
             </div>
             
-            {!isPointerLockedRef.current && (
-              <div className="bg-black/90 px-4 py-2 rounded border border-accent animate-pulse">
-                <span className="text-accent text-sm">
-                  Кликни для управления мышкой
-                </span>
-              </div>
-            )}
-            
             <div className="bg-black/70 px-4 py-1.5 rounded text-xs text-muted-foreground">
-              W/A/S/D - движение | Мышь - камера | Пробел - стрельба
+              W/S - вперед/назад | A/D - поворот | Пробел - стрельба
             </div>
           </div>
 
