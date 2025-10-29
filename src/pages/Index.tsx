@@ -196,6 +196,9 @@ const Index = () => {
   ]);
 
   const keysRef = useRef<{ [key: string]: boolean }>({});
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mouseMovementRef = useRef({ x: 0, y: 0 });
+  const isPointerLockedRef = useRef(false);
   const [shooting, setShooting] = useState(false);
   const [recoil, setRecoil] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -212,12 +215,39 @@ const Index = () => {
       keysRef.current[e.key.toLowerCase()] = false;
     };
 
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isPointerLockedRef.current && gameState === 'playing') {
+        mouseMovementRef.current.x += e.movementX;
+        mouseMovementRef.current.y += e.movementY;
+      }
+    };
+
+    const handleClick = () => {
+      if (gameState === 'playing' && canvasRef.current && !isPointerLockedRef.current) {
+        canvasRef.current.requestPointerLock();
+      }
+    };
+
+    const handlePointerLockChange = () => {
+      isPointerLockedRef.current = document.pointerLockElement === canvasRef.current;
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+    if (canvasRef.current) {
+      canvasRef.current.addEventListener('click', handleClick);
+    }
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('pointerlockchange', handlePointerLockChange);
+      if (canvasRef.current) {
+        canvasRef.current.removeEventListener('click', handleClick);
+      }
     };
   }, [gameState]);
 
@@ -238,27 +268,47 @@ const Index = () => {
       let newY = prev.y;
       let newAngle = prev.angle;
 
+      // Поворот камеры мышкой
+      if (mouseMovementRef.current.x !== 0) {
+        newAngle += mouseMovementRef.current.x * 0.002;
+        mouseMovementRef.current.x = 0;
+      }
+
+      // W - вперед
       if (keysRef.current['w']) {
-        const nextX = prev.x + Math.cos(prev.angle) * prev.speed;
-        const nextY = prev.y + Math.sin(prev.angle) * prev.speed;
+        const nextX = prev.x + Math.cos(newAngle) * prev.speed;
+        const nextY = prev.y + Math.sin(newAngle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
           newX = nextX;
           newY = nextY;
         }
       }
+      // S - назад
       if (keysRef.current['s']) {
-        const nextX = prev.x - Math.cos(prev.angle) * prev.speed;
-        const nextY = prev.y - Math.sin(prev.angle) * prev.speed;
+        const nextX = prev.x - Math.cos(newAngle) * prev.speed;
+        const nextY = prev.y - Math.sin(newAngle) * prev.speed;
         if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
           newX = nextX;
           newY = nextY;
         }
       }
+      // A - влево (стрейф)
       if (keysRef.current['a']) {
-        newAngle -= 0.05;
+        const nextX = prev.x + Math.cos(newAngle - Math.PI / 2) * prev.speed;
+        const nextY = prev.y + Math.sin(newAngle - Math.PI / 2) * prev.speed;
+        if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+          newX = nextX;
+          newY = nextY;
+        }
       }
+      // D - вправо (стрейф)
       if (keysRef.current['d']) {
-        newAngle += 0.05;
+        const nextX = prev.x + Math.cos(newAngle + Math.PI / 2) * prev.speed;
+        const nextY = prev.y + Math.sin(newAngle + Math.PI / 2) * prev.speed;
+        if (MAP[Math.floor(nextY)][Math.floor(nextX)] === 0) {
+          newX = nextX;
+          newY = nextY;
+        }
       }
 
       healthPacks.forEach((pack) => {
@@ -582,12 +632,26 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-black/80 px-6 py-2 rounded border-2 border-primary">
-            <div className="flex items-center gap-4">
-              <Icon name="Crosshair" className="text-primary" size={32} />
-              <span className="text-foreground text-lg">
-                ВРАГИ: {enemies.filter(e => e.active).length}
-              </span>
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col gap-2 items-center">
+            <div className="bg-black/80 px-6 py-2 rounded border-2 border-primary">
+              <div className="flex items-center gap-4">
+                <Icon name="Crosshair" className="text-primary" size={32} />
+                <span className="text-foreground text-lg">
+                  ВРАГИ: {enemies.filter(e => e.active).length}
+                </span>
+              </div>
+            </div>
+            
+            {!isPointerLockedRef.current && (
+              <div className="bg-black/90 px-4 py-2 rounded border border-accent animate-pulse">
+                <span className="text-accent text-sm">
+                  Кликни для управления мышкой
+                </span>
+              </div>
+            )}
+            
+            <div className="bg-black/70 px-4 py-1.5 rounded text-xs text-muted-foreground">
+              W/A/S/D - движение | Мышь - камера | Пробел - стрельба
             </div>
           </div>
 
